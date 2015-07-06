@@ -32,13 +32,14 @@ const (
 )
 
 // Client is the object that needs to be constructed to perform
-// operations on the storage account.
+// operations on the storage account
 type Client struct {
 	accountName string
 	accountKey  []byte
 	useHTTPS    bool
 	baseURL     string
 	apiVersion  string
+	isTable bool
 }
 
 type storageResponse struct {
@@ -85,6 +86,12 @@ func NewBasicClient(accountName, accountKey string) (Client, error) {
 	return NewClient(accountName, accountKey, DefaultBaseURL, DefaultAPIVersion, defaultUseHTTPS)
 }
 
+func NewTableClient(accountName, accountKey string) (Client, error) {
+	t,e:=NewBasicClient(accountName,accountKey)
+	t.isTable=true
+	return t,e
+}
+
 // NewClient constructs a Client. This should be used if the caller wants
 // to specify whether to use HTTPS, a specific REST API version or a custom
 // storage endpoint than Azure Public Cloud.
@@ -109,6 +116,7 @@ func NewClient(accountName, accountKey, blobServiceBaseURL, apiVersion string, u
 		useHTTPS:    useHTTPS,
 		baseURL:     blobServiceBaseURL,
 		apiVersion:  apiVersion,
+		isTable: false,
 	}, nil
 }
 
@@ -252,7 +260,12 @@ func (c Client) buildCanonicalizedResource(uri string) (string, error) {
 }
 
 func (c Client) buildCanonicalizedString(verb string, headers map[string]string, canonicalizedResource string) string {
-	canonicalizedString := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s",
+	
+	var canonicalizedString string
+	if c.isTable{
+		return fmt.Sprintf("%s\n%s\n%s\n%s\n%s",verb,headers["Content-MD5"],headers["Content-Type"],headers["x-ms-date"],canonicalizedResource)
+	}
+	canonicalizedString= fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s",
 		verb,
 		headers["Content-Encoding"],
 		headers["Content-Language"],
@@ -288,6 +301,8 @@ func (c Client) exec(verb, url string, headers map[string]string, body io.Reader
 	}
 	httpClient := http.Client{}
 	resp, err := httpClient.Do(req)
+
+
 	if err != nil {
 		return nil, err
 	}

@@ -83,13 +83,14 @@ func (t Table)Insert(data [][]byte)(string,error){
 	
 	if !t.intilized{
 		r,err:=t.CreateTable(20)
-		fmt.Println("create table return:"+r)
+		
 		if err!=nil{
+			fmt.Println("create table return:"+r+err.Error())
 			return r,err
 		}
 		t.intilized=true
 	}
-	var client,_ = NewBasicClient(t.accountName ,t.accountKey)
+	var client,_ = NewTableClient(t.accountName ,t.accountKey)
 	uri:=client.getEndpoint("table", "$batch", url.Values{})
 	headers := client.getStandardHeaders()
 	batch_id:=pseudo_uuid()
@@ -100,14 +101,13 @@ func (t Table)Insert(data [][]byte)(string,error){
 	headers["Content-Type"] = "multipart/mixed; boundary=batch_"+batch_id
 	headers["Prefer"]="return-no-content"
 	resp,err := client.exec("POST", uri,headers, bytes.NewReader(b))
-	fmt.Println(resp)
 	return dumpResponse(resp),err
 
 }
 
 func (t Table)CreateTable(retry int)(string,error){
 
-	var client,_ = NewBasicClient(t.accountName ,t.accountKey )
+	var client,_ = NewTableClient(t.accountName ,t.accountKey )
 	uri:=client.getEndpoint("table", "Tables", url.Values{})
 	headers := client.getStandardHeaders()
 	b:=[]byte(fmt.Sprintf(`{"TableName":"%s"}`,t.tableName))
@@ -121,7 +121,7 @@ func (t Table)CreateTable(retry int)(string,error){
 	if strings.Contains(r,"TableAlreadyExists") {
 		return "TableAlreadyExists",nil
 	}
-	if strings.Contains(r,"TableBeingDeleted") {
+	if strings.Contains(r,"TableBeingDeleted") && retry>0 {
 		time.Sleep(time.Second*30)
 		retry-=1
 		return t.CreateTable(retry)
